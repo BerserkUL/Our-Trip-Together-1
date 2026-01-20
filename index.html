@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, height=device-height, initial-scale=1.0, user-scalable=no">
+<title>Our Trip Together</title>
+
+<style>
+html, body {
+    margin: 0;
+    padding: 0;
+    background: #000;
+    overflow: hidden;
+    font-family: monospace;
+}
+
+canvas {
+    display: block;
+}
+
+#ui {
+    position: fixed;
+    bottom: 10px;
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    pointer-events: none;
+}
+
+.btn {
+    width: 70px;
+    height: 70px;
+    background: rgba(255,255,255,0.2);
+    border-radius: 12px;
+    text-align: center;
+    line-height: 70px;
+    font-size: 30px;
+    color: white;
+    pointer-events: auto;
+    user-select: none;
+}
+</style>
+</head>
+
+<body>
+
+<canvas id="game"></canvas>
+
+<div id="ui">
+    <div style="display:flex;">
+        <div class="btn" id="left">◀</div>
+        <div class="btn" id="right">▶</div>
+    </div>
+    <div class="btn" id="jump">▲</div>
+</div>
+
+<script>
+// ================= CANVAS =================
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
+
+// ================= INPUT =================
+let keys = { left:false, right:false, jump:false };
+
+// TOUCH (mobile)
+function bindTouch(id, key){
+    const el = document.getElementById(id);
+    el.addEventListener("touchstart", e => {
+        e.preventDefault();
+        keys[key] = true;
+    });
+    el.addEventListener("touchend", e => {
+        e.preventDefault();
+        keys[key] = false;
+    });
+}
+bindTouch("left","left");
+bindTouch("right","right");
+bindTouch("jump","jump");
+
+// KEYBOARD (PC)
+window.addEventListener("keydown", e => {
+    if(e.key === "ArrowLeft" || e.key === "a") keys.left = true;
+    if(e.key === "ArrowRight" || e.key === "d") keys.right = true;
+    if(e.key === "ArrowUp" || e.key === "w" || e.key === " ") keys.jump = true;
+});
+
+window.addEventListener("keyup", e => {
+    if(e.key === "ArrowLeft" || e.key === "a") keys.left = false;
+    if(e.key === "ArrowRight" || e.key === "d") keys.right = false;
+    if(e.key === "ArrowUp" || e.key === "w" || e.key === " ") keys.jump = false;
+});
+
+// ================= GAME =================
+let gravity = 0.8;
+let ground = canvas.height - 80;
+
+let player = { x:100, y:ground, w:30, h:40, vx:0, vy:0, onGround:true };
+let npc = { x:40, y:ground, w:30, h:40 };
+
+let coins = [
+    {x:400,y:ground-40,collected:false},
+    {x:700,y:ground-40,collected:false},
+    {x:1000,y:ground-40,collected:false},
+    {x:1300,y:ground-40,collected:false},
+    {x:1600,y:ground-40,collected:false}
+];
+
+let messages = [
+    "Dammi un bacetto per continuare",
+    "Dammi due bacetti per continuare",
+    "Canta una canzone di Anna Pepe",
+    "Dammi un abbraccio per continuare",
+    "Dopo non piangere"
+];
+
+let camX = 0;
+let messageIndex = -1;
+let finished = false;
+
+// ================= DRAW =================
+function drawBackground(){
+    ctx.fillStyle="#87ceeb";
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+
+    for(let i=0;i<10;i++){
+        let x = (i*300 - camX*0.3)%2000;
+        ctx.fillStyle="#8b5a2b";
+        ctx.fillRect(x,ground-100,20,100);
+        ctx.fillStyle="#ffb7c5";
+        ctx.beginPath();
+        ctx.arc(x+10,ground-110,40,0,Math.PI*2);
+        ctx.fill();
+    }
+
+    ctx.fillStyle="#3cb371";
+    ctx.fillRect(0,ground,canvas.width,80);
+}
+
+function drawChar(c,color){
+    ctx.fillStyle=color;
+    ctx.fillRect(c.x-camX,c.y,c.w,c.h);
+}
+
+function drawCoins(){
+    coins.forEach(c=>{
+        if(!c.collected){
+            ctx.fillStyle="gold";
+            ctx.beginPath();
+            ctx.arc(c.x-camX,c.y,10,0,Math.PI*2);
+            ctx.fill();
+        }
+    });
+}
+
+function drawMessage(){
+    if(messageIndex>=0 && messageIndex<messages.length){
+        ctx.fillStyle="rgba(0,0,0,0.7)";
+        ctx.fillRect(20,20,canvas.width-40,60);
+        ctx.fillStyle="white";
+        ctx.font="18px monospace";
+        ctx.fillText(messages[messageIndex],40,60);
+    }
+}
+
+// ================= UPDATE =================
+function update(){
+    if(finished) return;
+
+    player.vx = 0;
+    if(keys.left) player.vx = -4;
+    if(keys.right) player.vx = 4;
+
+    if(keys.jump && player.onGround){
+        player.vy = -14;
+        player.onGround = false;
+    }
+
+    player.vy += gravity;
+    player.x += player.vx;
+    player.y += player.vy;
+
+    if(player.y >= ground){
+        player.y = ground;
+        player.vy = 0;
+        player.onGround = true;
+    }
+
+    npc.x += (player.x - 50 - npc.x) * 0.05;
+    npc.y = player.y;
+
+    camX = player.x - 150;
+
+    coins.forEach((c,i)=>{
+        if(!c.collected &&
+            player.x < c.x+20 &&
+            player.x+player.w > c.x &&
+            player.y < c.y+20 &&
+            player.y+player.h > c.y){
+            c.collected = true;
+            messageIndex++;
+        }
+    });
+
+    if(coins.every(c=>c.collected)) finished = true;
+}
+
+// ================= FINAL =================
+function drawFinal(){
+    ctx.fillStyle="black";
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+    ctx.fillStyle="white";
+    ctx.font="24px monospace";
+    ctx.textAlign="center";
+    ctx.fillText("Hai vinto! Ora potrai avere il vero regalo!",canvas.width/2,canvas.height/2);
+    ctx.font="10px monospace";
+    ctx.fillText("plis don't cri",canvas.width/2,canvas.height/2+30);
+}
+
+// ================= LOOP =================
+function loop(){
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    if(!finished){
+        drawBackground();
+        drawCoins();
+        drawChar(player,"#ff69b4");
+        drawChar(npc,"#4169e1");
+        drawMessage();
+        update();
+    } else {
+        drawFinal();
+    }
+    requestAnimationFrame(loop);
+}
+
+loop();
+</script>
+</body>
+</html>
+
